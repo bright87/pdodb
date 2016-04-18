@@ -48,6 +48,9 @@ class MySQL:
     #预处理绑定的数值
     _prepare_value = None
 
+    #调试模式 True:调试模式; False:非调试模式
+    _debug = True
+
     def __init__(self, host, user, passwd, db, port=3306, charset="utf8"):
         """
 
@@ -65,21 +68,39 @@ class MySQL:
     def __del__(self):
         self._connecter.close()
 
+    def set_debug(self, debug):
+        """
+        设置调试模式
+        :param debug: bool True or False
+        :return: None
+        """
+        self._debug = debug
+        return
+
     def table(self, table):
         """
         设置表名
         :param table: string 数据表名
         :return: self
         """
+        #调试模式，执行断言。
+        if self._debug:
+            assert isinstance(table, str) and ''!=table, "表名必须是字符串，且不能为空。"
+
         self._table = table
         return self
 
-    def fields(self, fields=[]):
+    def fields(self, fields=()):
         """
         设置要查询的字段
         :param fields: list 要查询的字段列表，默认是空该列表，表示要获取所有字段的值。
         :return: self
         """
+        #调试模式，执行断言。
+        if self._debug:
+            assert isinstance(fields, tuple) or isinstance(fields, list), "字段必须是list或者tuple"
+            assert 0<len(fields), "字段列表不能为空"
+
         if 0 >= len(fields):
             return self
         self._fields = '`' + '`,`'.join(fields) + '`'
@@ -100,6 +121,11 @@ class MySQL:
 
         :return: self
         """
+        #调试模式，执行断言。
+        if self._debug:
+            assert isinstance(where, tuple) or isinstance(where, list), "where条件必须是list或者tuple"
+            assert 0<len(where), "where条件不能为空"
+
         #tuple where
         if isinstance(where, tuple):
             self._where = self._buildwhere(where)
@@ -118,12 +144,38 @@ class MySQL:
         # print self._prepare_value #TEST
         return self
 
+    def group(self, group):
+        """
+        分组规则
+        :param group: string
+        :return: self
+        """
+        if self._debug:
+            assert isinstance(group, str) and ''!=group, "group必须是字符串，并且不能为空."
+
+        if '' == group:
+            return self
+
+        self._group = 'GROUP BY ' + group
+        return self
+
+    def having(self):
+        pass
+
     def order(self, order):
         """
         排序规则
         :param order: string 排序规则
         :return: self
         """
+        #调试模式，执行断言。
+        if self._debug:
+            assert isinstance(order, str) and ''!=order, "order必须是字符串，并且不能为空."
+
+        if '' == order:
+            return self
+
+        self._order = 'ORDER BY ' + order
         return self
 
     def _buildwhere(self, where):
@@ -149,7 +201,6 @@ class MySQL:
             #预处理绑定数据
             prepare_value = map(str, where[2])
             self._prepare_value += prepare_value
-
         return condition
 
     def find(self):
@@ -157,6 +208,10 @@ class MySQL:
         查找一条数据
         :return: dict
         """
+        #调试模式，执行断言。
+        if self._debug:
+            assert isinstance(self._table, str) and ''!=self._table, '数据表名必须是字符串，并且不能为空'
+
         self._sql = self._buildsql('SELECT')
         print self._sql
 
@@ -189,9 +244,8 @@ class MySQL:
         elif 'SELECT' == operation_upper:
             if self._fields is None:
                 self._fields = '*'
-            sql = 'SELECT ' + self._fields + ' ' + self._where
+            sql = 'SELECT ' + self._fields + ' ' + self._where + self._group
         else:
             pass
-
         return sql
 
