@@ -27,7 +27,7 @@ class MySQL:
     #当前要执行的sql
     _sql = None
 
-    #要查询的字段
+    #要查询的字段，插入数据时的数据字段
     _fields = None
 
     #查询条件 WHERE
@@ -50,6 +50,9 @@ class MySQL:
 
     #调试模式 True:调试模式; False:非调试模式
     _debug = True
+
+    #新增或需要更新的数据
+    _data = None
 
     def __init__(self, host, user, passwd, db, port=3306, charset="utf8"):
         """
@@ -86,7 +89,6 @@ class MySQL:
         #调试模式，执行断言。
         if self._debug:
             assert isinstance(table, str) and ''!=table, "表名必须是字符串，且不能为空。"
-
         self._table = table
         return self
 
@@ -100,7 +102,6 @@ class MySQL:
         if self._debug:
             assert isinstance(fields, tuple) or isinstance(fields, list), "字段必须是list或者tuple"
             assert 0<len(fields), "字段列表不能为空"
-
         if 0 >= len(fields):
             return self
         self._fields = '`' + '`,`'.join(fields) + '`'
@@ -136,12 +137,9 @@ class MySQL:
             self._bind_param = []
             for item in where:
                 condition_list.append(self._buildwhere(item))
-
             self._where = ' AND '.join(condition_list)
 
         self._where = 'WHERE ' + self._where
-        # print self._where #TEST
-        # print self._bind_param #TEST
         return self
 
     def group(self, group):
@@ -161,6 +159,10 @@ class MySQL:
         return self
 
     def having(self):
+        """
+
+        :return:
+        """
         pass
 
     def order(self, order):
@@ -203,20 +205,42 @@ class MySQL:
             self._bind_param = []
 
         condition = ''
-
         if where[1] is not 'in':
             condition = "`" + where[0] + "`" + where[1] + "%s"
 
             #预处理绑定数据
             self._bind_param.append(where[2])
         else:
-            placeholder = ['%s' for i in range(0, len(where[2]))]
+            placeholder = ['%s' for i in where[2]]
             condition = "`" + where[0] + "` " + where[1] + " (" + ",".join( placeholder ) + ")"
 
             #预处理绑定数据
             prepare_value = map(str, where[2])
             self._bind_param += prepare_value
         return condition
+
+
+    def insert(self, data):
+        """
+        添加数据，添加单条
+        :param data: dict 新数据
+        :return: integer 新数据ID
+        """
+        validate = isinstance(data, dict) and 0 < len(data)
+        if self._debug:
+            assert validate, "data必须为dict并且不能为空"
+            assert isinstance(self._table, str) and ''!=self._table, '数据表名必须是字符串，并且不能为空'
+        if not validate:
+            return 0
+        if isinstance(data, dict):
+            self._fields = data.keys()
+            self._bind_param = data.values()
+        self._sql = self._buildsql('INSERT')
+        self._beforeExecute()
+        result = self._execute()
+        self._afterExecute()
+        return result
+
 
     def find(self):
         """
@@ -238,17 +262,35 @@ class MySQL:
         if not validate_sql:
             return {}
 
-        self._beforeExecute()
-        result = self._query()
-        self._afterExecute()
-        return result[0]
+        # self._beforeExecute()
+        # result = self._query()
+        # self._afterExecute()
+        # return result[0]
 
     def select(self):
         """
         查找多条数据
         :return:
         """
-        pass
+        #调试模式，执行断言。
+        if self._debug:
+            assert isinstance(self._table, str) and ''!=self._table, '数据表名必须是字符串，并且不能为空'
+
+        self._sql = self._buildsql('SELECT')
+        validate_sql = self._sql is not None and '' != self._sql
+
+        #调试模式，执行断言。
+        if self._debug:
+            assert validate_sql, 'SQL语句不能为空'
+
+        if not validate_sql:
+            return []
+
+        self._beforeExecute()
+        result = self._query()
+        self._afterExecute()
+        return result
+
 
     def _beforeExecute(self):
         """
@@ -306,11 +348,9 @@ class MySQL:
         """
         cursor = self._connecter.cursor(cursorclass=MySQLdb.cursors.DictCursor)
         cursor.execute(self._sql, self._bind_param)
-
         result = []
         for row in cursor.fetchall():
             result.append(row)
-
         cursor.close()
         return result
 
@@ -319,7 +359,18 @@ class MySQL:
         执行sql语句，insert delete update 等不需要返回结果集的操作
         :return: int 影响行数
         """
+        option = self._sql[0:self._sql.index(' ')]
+        option = option.upper()
 
+        cursor = self._connecter.cursor()
+        if 'INSERT' == option:
+            cursor.execute(self._sql, self._bind_param)
+            result = cursor.lastrowid
+        else:
+            result = cursor.execute(self._sql, self._bind_param)
+        cursor.close()
+        self._connecter.commit()
+        return result
 
     def _buildsql(self, operation):
         """
@@ -335,7 +386,8 @@ class MySQL:
 
         sql = ''
         if 'INSERT' == operation_upper:
-            sql = 'INSERT '
+            placeholder = ['%s' for i in self._bind_param]
+            sql = 'INSERT INTO ' + self._table + ' (`' + '`,`'.join(self._fields) + '`) VALUES (' + ','.join(placeholder) + ')'
         elif 'DELETE' == operation_upper:
             pass
         elif 'UPDATE' == operation_upper:
@@ -348,7 +400,7 @@ class MySQL:
             pass
         return sql
 
-    def getsql(self):
+    def get_lastsql(self):
         """
         最后执行的SQL
         :return: string
