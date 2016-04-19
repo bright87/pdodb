@@ -16,15 +16,33 @@ table = 'user'
 mysqldb.set_debug(True)
 
 #insert one
-data = {'nickname': 'lily-3', 'email': "lily-3@sina.cn"}
-result = mysqldb.table(table).insert(data)
-print 'insert(),添加单条数据。'
-print 'id: ', result
-print mysqldb.get_lastsql()
-print ''
+# data = {'nickname': 'lily-3', 'email': "lily-3@sina.cn"}
+# result = mysqldb.table(table).insert(data)
+# print 'insert(),添加单条数据。'
+# print 'id: ', result
+# print mysqldb.get_lastsql()
+# print ''
 
 #insert many
+# data = [
+#     {'nickname': 'bright', 'email': "bright@sina.cn"},
+#     {'nickname': '临', 'email': "lin@sina.cn"},
+#     {'nickname': '兵', 'email': "bing@sina.cn"},
+#     {'nickname': '斗', 'email': "dou@sina.cn"},
+#     {'nickname': '者', 'email': "zhe@sina.cn"},
+#     {'nickname': '皆', 'email': "jie@sina.cn"},
+#     {'nickname': '阵', 'email': "zhen@sina.cn"},
+#     {'nickname': '列', 'email': "lie@sina.cn"},
+#     {'nickname': '前', 'email': "qian@sina.cn"},
+#     {'nickname': '行', 'email': "xing@sina.cn"}
+# ]
+# result = mysqldb.table(table).insertmany(data)
+# print 'insertmany(),添加多条数据。'
+# print 'id: ', result
+# print mysqldb.get_lastsql()
+# print ''
 
+#update
 
 #find
 where = ('id', '>', '2')

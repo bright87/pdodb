@@ -232,15 +232,36 @@ class MySQL:
             assert isinstance(self._table, str) and ''!=self._table, '数据表名必须是字符串，并且不能为空'
         if not validate:
             return 0
-        if isinstance(data, dict):
-            self._fields = data.keys()
-            self._bind_param = data.values()
+        self._data = data
+        self._fields = data.keys()
+        self._bind_param = data.values()
         self._sql = self._buildsql('INSERT')
         self._beforeExecute()
         result = self._execute()
         self._afterExecute()
         return result
 
+
+    def insertmany(self, data):
+        """
+        添加多条数据
+        :param data: list 新数据
+        :return: integer 新数据ID，最后一条数据ID。
+        """
+        validate = isinstance(data, list) and 0 < len(data)
+        if self._debug:
+            assert validate, "data必须为dict并且不能为空"
+            assert isinstance(self._table, str) and ''!=self._table, '数据表名必须是字符串，并且不能为空'
+        if not validate:
+            return 0
+        self._data = data
+        self._fields = data[0].keys()
+        self._bind_param = [item.values() for item in data]
+        self._sql = self._buildsql('INSERT')
+        self._beforeExecute()
+        result = self._execute()
+        self._afterExecute()
+        return result
 
     def find(self):
         """
@@ -262,10 +283,10 @@ class MySQL:
         if not validate_sql:
             return {}
 
-        # self._beforeExecute()
-        # result = self._query()
-        # self._afterExecute()
-        # return result[0]
+        self._beforeExecute()
+        result = self._query()
+        self._afterExecute()
+        return result[0]
 
     def select(self):
         """
@@ -364,7 +385,12 @@ class MySQL:
 
         cursor = self._connecter.cursor()
         if 'INSERT' == option:
-            cursor.execute(self._sql, self._bind_param)
+            if isinstance(self._data, dict):
+                cursor.execute(self._sql, self._bind_param)
+            elif isinstance(self._data, list):
+                cursor.executemany(self._sql, self._bind_param)
+            else:
+                raise ValueError('数据格式错误')
             result = cursor.lastrowid
         else:
             result = cursor.execute(self._sql, self._bind_param)
@@ -386,7 +412,7 @@ class MySQL:
 
         sql = ''
         if 'INSERT' == operation_upper:
-            placeholder = ['%s' for i in self._bind_param]
+            placeholder = ['%s' for i in self._fields]
             sql = 'INSERT INTO ' + self._table + ' (`' + '`,`'.join(self._fields) + '`) VALUES (' + ','.join(placeholder) + ')'
         elif 'DELETE' == operation_upper:
             pass
