@@ -42,7 +42,19 @@ mysqldb.set_debug(True)
 # print mysqldb.get_lastsql()
 # print ''
 
+#delete
+# where = [
+#     ('id', '>', '2'),
+#     ('id', 'in', (3,4,5,6))
+# ]
+# result = mysqldb.table(table).where(where).delete()
+# print 'delete(),删除数据。'
+# print 'id: ', result
+# print mysqldb.get_lastsql()
+# print ''
+
 #update
+
 
 #find
 where = ('id', '>', '2')

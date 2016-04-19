@@ -209,7 +209,7 @@ class MySQL:
             condition = "`" + where[0] + "`" + where[1] + "%s"
 
             #预处理绑定数据
-            self._bind_param.append(where[2])
+            self._bind_param.append(str(where[2]))
         else:
             placeholder = ['%s' for i in where[2]]
             condition = "`" + where[0] + "` " + where[1] + " (" + ",".join( placeholder ) + ")"
@@ -258,6 +258,21 @@ class MySQL:
         self._fields = data[0].keys()
         self._bind_param = [item.values() for item in data]
         self._sql = self._buildsql('INSERT')
+        self._beforeExecute()
+        result = self._execute()
+        self._afterExecute()
+        return result
+
+    def delete(self):
+        """
+        根据主键删除数据
+        :param primarykey: integer 主键
+        :return: integer 受影响行数
+        """
+        if self._debug:
+            assert isinstance(self._table, str) and ''!=self._table, '数据表名必须是字符串，并且不能为空'
+            assert 0 < len(self._where), "请设置删除条件"
+        self._sql = self._buildsql('DELETE')
         self._beforeExecute()
         result = self._execute()
         self._afterExecute()
@@ -321,6 +336,7 @@ class MySQL:
         self._lastsql = {}
         self._lastsql['prepare_sql'] = self._sql
         self._lastsql['bind_param']  = self._bind_param
+        self._lastsql['data'] = self._data
         return
 
     def _afterExecute(self):
@@ -360,6 +376,8 @@ class MySQL:
 
         #预处理绑定的数值
         self._bind_param = None
+
+        self._data = None
         return
 
     def _query(self):
@@ -415,7 +433,7 @@ class MySQL:
             placeholder = ['%s' for i in self._fields]
             sql = 'INSERT INTO ' + self._table + ' (`' + '`,`'.join(self._fields) + '`) VALUES (' + ','.join(placeholder) + ')'
         elif 'DELETE' == operation_upper:
-            pass
+            sql = 'DELETE FROM ' + self._table + ' ' + self._where
         elif 'UPDATE' == operation_upper:
             pass
         elif 'SELECT' == operation_upper:
