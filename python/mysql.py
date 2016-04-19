@@ -19,7 +19,7 @@ class MySQL:
     _connecter = None
 
     #数据表名
-    _table = None
+    _table = ''
 
     #最后一次执行的SQL信息
     _lastsql = None
@@ -31,22 +31,22 @@ class MySQL:
     _fields = None
 
     #查询条件 WHERE
-    _where = None
+    _where = ''
 
     #limit
-    _limit = None
+    _limit = ''
 
     #排序规则 ORDER BY
-    _order = None
+    _order = ''
 
     #分组 GROUP BY
-    _group = None
+    _group = ''
 
     #HAVING
-    _having = None
+    _having = ''
 
     #预处理绑定的数值
-    _prepare_value = None
+    _bind_param = None
 
     #调试模式 True:调试模式; False:非调试模式
     _debug = True
@@ -133,7 +133,7 @@ class MySQL:
         #list where
         if isinstance(where, list):
             condition_list = []
-            self._prepare_value = []
+            self._bind_param = []
             for item in where:
                 condition_list.append(self._buildwhere(item))
 
@@ -141,7 +141,7 @@ class MySQL:
 
         self._where = 'WHERE ' + self._where
         # print self._where #TEST
-        # print self._prepare_value #TEST
+        # print self._bind_param #TEST
         return self
 
     def group(self, group):
@@ -150,6 +150,7 @@ class MySQL:
         :param group: string
         :return: self
         """
+        #调试模式，执行断言。
         if self._debug:
             assert isinstance(group, str) and ''!=group, "group必须是字符串，并且不能为空."
 
@@ -178,29 +179,43 @@ class MySQL:
         self._order = 'ORDER BY ' + order
         return self
 
+    def limit(self, offset, limit):
+        """
+        设置sql LIMIT
+        :param offset: integer 偏移量
+        :param limit: integer 偏移量
+        :return: self
+        """
+        if self._debug:
+            assert isinstance(offset, int) and 0 <= offset, 'offset必须是大于等于0的整数'
+            assert isinstance(limit, int) and 0 < limit, 'offset必须是大于0的整数'
+
+        self._limit = 'LIMIT ' + str(offset) + ',' + str(limit)
+        return self
+
     def _buildwhere(self, where):
         """
         生成SQL where条件表达式
         :param where: tuple 查询条件元组
         :return: string 拼装好的where表达式
         """
-        if self._prepare_value is None:
-            self._prepare_value = []
+        if self._bind_param is None:
+            self._bind_param = []
 
         condition = ''
 
         if where[1] is not 'in':
-            condition = "`" + where[0] + "`" + where[1] + "'%s'"
+            condition = "`" + where[0] + "`" + where[1] + "%s"
 
             #预处理绑定数据
-            self._prepare_value.append(where[2])
+            self._bind_param.append(where[2])
         else:
             placeholder = ['%s' for i in range(0, len(where[2]))]
-            condition = "`" + where[0] + "` " + where[1] + " ('" + "','".join( placeholder ) + "')"
+            condition = "`" + where[0] + "` " + where[1] + " (" + ",".join( placeholder ) + ")"
 
             #预处理绑定数据
             prepare_value = map(str, where[2])
-            self._prepare_value += prepare_value
+            self._bind_param += prepare_value
         return condition
 
     def find(self):
@@ -212,8 +227,21 @@ class MySQL:
         if self._debug:
             assert isinstance(self._table, str) and ''!=self._table, '数据表名必须是字符串，并且不能为空'
 
+        self.limit(0, 1)
         self._sql = self._buildsql('SELECT')
-        print self._sql
+        validate_sql = self._sql is not None and '' != self._sql
+
+        #调试模式，执行断言。
+        if self._debug:
+            assert validate_sql, 'SQL语句不能为空'
+
+        if not validate_sql:
+            return {}
+
+        self._beforeExecute()
+        result = self._query()
+        self._afterExecute()
+        return result[0]
 
     def select(self):
         """
@@ -221,6 +249,77 @@ class MySQL:
         :return:
         """
         pass
+
+    def _beforeExecute(self):
+        """
+        执行SQL语句之前要做的准备工作，要执行的操作
+        :return: None
+        """
+        self._lastsql = {}
+        self._lastsql['prepare_sql'] = self._sql
+        self._lastsql['bind_param']  = self._bind_param
+        return
+
+    def _afterExecute(self):
+        """
+        sql语句执行后要执行的操作
+        :return:
+        """
+        #初始化（重置）sql语句中各关键词的值
+        self._initSqlParam()
+        return
+
+    def _initSqlParam(self):
+        """
+        初始化（重置）sql语句中各关键词的值
+        :return: None
+        """
+        #当前要执行的sql
+        self._sql = None
+
+        #要查询的字段
+        self._fields = None
+
+        #查询条件 WHERE
+        self._where = ''
+
+        #limit
+        self._limit = ''
+
+        #排序规则 ORDER BY
+        self._order = ''
+
+        #分组 GROUP BY
+        self._group = ''
+
+        #HAVING
+        self._having = ''
+
+        #预处理绑定的数值
+        self._bind_param = None
+        return
+
+    def _query(self):
+        """
+        执行sql语句，select查询操作，返回结果集
+        :return:
+        """
+        cursor = self._connecter.cursor(cursorclass=MySQLdb.cursors.DictCursor)
+        cursor.execute(self._sql, self._bind_param)
+
+        result = []
+        for row in cursor.fetchall():
+            result.append(row)
+
+        cursor.close()
+        return result
+
+    def _execute(self):
+        """
+        执行sql语句，insert delete update 等不需要返回结果集的操作
+        :return: int 影响行数
+        """
+
 
     def _buildsql(self, operation):
         """
@@ -244,8 +343,15 @@ class MySQL:
         elif 'SELECT' == operation_upper:
             if self._fields is None:
                 self._fields = '*'
-            sql = 'SELECT ' + self._fields + ' ' + self._where + self._group
+            sql = 'SELECT ' + self._fields + ' FROM ' + self._table + ' ' + self._where + ' ' + self._group + ' ' + self._having + ' ' + self._order + ' ' + self._limit
         else:
             pass
         return sql
+
+    def getsql(self):
+        """
+        最后执行的SQL
+        :return: string
+        """
+        return self._lastsql
 

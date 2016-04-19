@@ -16,15 +16,16 @@ mysqldb = mysql.MySQL(host, user, passwd, db, port, charset)
 
 table = 'sop_data_business'
 # where = ('id', '>', '6')
-where = ('id', 'in', (1,2,34))
+where = ('business_id', 'in', (1,2,34))
 where = [
-    ('id', '>', '6'),
-    ('id', 'in', (1,2,34)),
-    ('buisiness_id', 'in', (1,2,34))
+    ('business_id', '>', '6'),
+    # ('business_id', 'in', (1,2,34,35,36,37))
 ]
 
-fields = ('bisiness_id', 'is_hidden', 'company_id', 'business_name',)
+fields = ('business_id', 'is_hidden', 'company_id', 'business_name',)
 order = 'business_id DESC'
-mysqldb.table(table).where(where).fields(fields).order(order).find()
+result = mysqldb.table(table).where(where).fields(fields).order(order).find()
+print result
+# print mysqldb.get_lastsql()
 # print mysqldb
 
