@@ -23,55 +23,61 @@ class PDODb
      * 遥操作的数据表名称
      * @var string
      */
-    private $mTableName;
+    private $mTableName = '';
     
     /**
      * 数据表主键
      * @var string 
      */
-    private $mPrimaryKey;
+    private $mPrimaryKey = '';
     
     /**
      * 预处理sql
      * @var string 
      */
-    private $mPrepareSql;
+    private $mPrepareSql = '';
     
     /**
      * 绑定的参数
      * @var array 
      */
-    private $mBindParam;
+    private $mBindParam = [];
+    
+    /**
+     * 要查询的字段
+     * @var type 
+     */
+    private $mFields = '*';
     
     /**
      * sql where条件
      * @var mixt
      */
-    private $mWhere;
+    private $mWhere = '';
     
     /**
      * sql limit
      * @var string 
      */
-    private $mLimit;
+    private $mLimit = '';
     
     /**
      *
      * @var string
      */
-    private $mOrder;
+    private $mOrder = '';
     
     /**
      *
      * @var string
      */
-    private $mGroup;  
+    private $mGroup = '';  
     
     /**
      *
      * @var string
      */
-    private $mHaving;
+    private $mHaving = '';
     
     public function __construct( $pHost, $pDbuser, $pDbpass, $pDbname, $pPort=3306, $pEncode = 'utf8' )
     {
@@ -133,10 +139,11 @@ class PDODb
         $this->beforeExecute();
         $tSth = $this->mConnect->prepare( $this->mPrepareSql );
         if ( !$tSth->execute( $this->mBindParam ) ) {
+            $tSth->closeCursor();
             $this->afterExecute();
             return 0;
         }
-        
+        $tSth->closeCursor();
         $this->afterExecute();
         
         return $this->mConnect->lastInsertId();
@@ -175,7 +182,7 @@ class PDODb
             $tBindParam = array_values($value);
             $tSth->execute( $tBindParam );
         }
-        
+        $tSth->closeCursor();
         $this->afterExecute();
         
         return $this->mConnect->lastInsertId();
@@ -213,8 +220,11 @@ class PDODb
         $this->afterExecute();
         
         if ( $tDeleteResult ) {
-            return $tSth->rowCount();
+            $tDeleteResult = $tSth->rowCount();
+            $tSth->closeCursor();
+            return $tDeleteResult;
         } else {
+            $tSth->closeCursor();
             return 0;
         }
     }
@@ -227,7 +237,7 @@ class PDODb
      */
     public function delete()
     {
-        $this->mPrepareSql = "DELETE FROM {$this->mTableName} WHERE {$this->mWhere}";
+        $this->mPrepareSql = "DELETE FROM {$this->mTableName} {$this->mWhere}";
         
         $this->beforeExecute();
         if ( !empty($this->mBindParam) ) {
@@ -238,24 +248,117 @@ class PDODb
         $this->beforeExecute();
     }
     
-    public function updateByPrimaryKey()
+    /**
+     * 根据主键更新
+     * @author 董光明 <dongguangming@17house.com>
+     * @date 2016-04-21 16:02
+     * @param int $pPrimaryKey 主键
+     * @param array $pData 新数据
+     * @return null
+     */
+    public function updateByPrimaryKey( $pPrimaryKey, $pData )
     {
-        
+        //TODO
     }
     
-    public function update()
+    /**
+     * 更新数据
+     * @author 董光明 <dongguangming@17house.com>
+     * @date 2016-04-21 16:33
+     * @param type $pData
+     * @return int
+     */
+    public function update( $pData )
     {
+        if ( empty($pData) || !is_array($pData) ) {
+            return 0;
+        }
         
+        $tUp = [];
+        $tValues = [];
+        foreach ( $pData as $key => $value ) {
+            $tUp[] = "`{$key}`=?";
+            $tValues[] = $value;
+        }
+        
+        $this->mPrepareSql = "UPDATE {$this->mTableName} SET " . implode(',', $tUp) . ' ' . $this->mWhere;
+        $this->mBindParam = array_merge($tValues, $this->mBindParam);
+        
+        $this->beforeExecute();
+        $tSth = $this->mConnect->prepare($this->mPrepareSql);
+        $tDeleteResult = $tSth->execute($this->mBindParam);
+        $this->afterExecute();
+        
+        if ( $tDeleteResult ) {
+            $tAffected = $tSth->rowCount();
+            $tSth->closeCursor();
+            return $tAffected;
+        } else {
+            $tSth->closeCursor();
+            return 0;
+        }
     }
     
+    /**
+     * 单条数据
+     * @author 董光明 <dongguangming@17house.com>
+     * @return array
+     */
     public function find()
     {
+        $this->limit(0, 1);
+        $this->mPrepareSql = "SELECT {$this->mFields} FROM {$this->mTableName} {$this->mWhere}"
+        . " {$this->mGroup} {$this->mOrder} {$this->mLimit}";
         
+        $this->beforeExecute();
+        $tSth = $this->mConnect->prepare($this->mPrepareSql);
+        $tDeleteResult = $tSth->execute($this->mBindParam);
+        $this->afterExecute();
+        
+        if ( $tDeleteResult ) {
+            $tData = array_pop($tSth->fetchAll(PDO::FETCH_ASSOC));
+            $tSth->closeCursor();
+            return $tData;
+        } else { //查询失败
+            $tSth->closeCursor();
+            return [];
+        }
     }
     
+    /**
+     * 查找多条数据
+     * @author 董光明 <dongguangming@17house.com>
+     * @return array
+     */
     public function select()
     {
+        $this->mPrepareSql = "SELECT {$this->mFields} FROM {$this->mTableName} {$this->mWhere}"
+        . " {$this->mGroup} {$this->mOrder} {$this->mLimit}";
         
+        $this->beforeExecute();
+        $tSth = $this->mConnect->prepare($this->mPrepareSql);
+        $tDeleteResult = $tSth->execute($this->mBindParam);
+        $this->afterExecute();
+        
+        if ( $tDeleteResult ) {
+            $tData = $tSth->fetchAll(PDO::FETCH_ASSOC);
+            $tSth->closeCursor();
+            return $tData;
+        } else { //查询失败
+            return [];
+        }
+    }
+    
+    /**
+     * 设置myslq limit
+     * @param type $pOffset
+     * @param type $pLimit
+     * @return \PDODb
+     */
+    public function limit( $pOffset, $pLimit )
+    {
+        $this->mLimit = "LIMIT {$pOffset},{$pLimit}";
+        return $this;
     }
     
     /**
@@ -266,26 +369,78 @@ class PDODb
     public function where( &$pWhere )
     {
         if (is_string($pWhere) ) {
-            $this->mWhere = trim($pWhere);
+            $this->mWhere = 'WHERE ' . trim($pWhere);
             return $this;
         }
         
         if ( is_array($pWhere) ) {
-            $this->mWhere = '';
-            foreach ( $pWhere as $key => $value ) {
-                if ( is_array($value) ) {
-                    $this->mWhere .= "`{$value[0]}`{$value[1]}? AND";
-                    $this->mBindParam[] = $value[2];
-                } else {
-                    $this->mWhere .= "`{$key}`=>'?' AND ";
-                    $this->mBindParam[] = $value;
-                }
+            $tOption = strtoupper($pWhere[1]);
+            switch ($tOption) {
+                case '=':
+                case '>=':
+                case '<=':
+                case '!=':
+                case '<>':
+                case '>':
+                case '<':
+                    $this->mWhere = "WHERE `{$pWhere[0]}`{$pWhere[1]}?";
+                    $this->mBindParam[] = $pWhere[2];
+                    break;
+
+                case 'IN':
+                    $tPlaceholder = array_fill(0, count($pWhere[2]), '?');
+                    $this->mWhere = "WHERE `{$pWhere[0]}` {$pWhere[1]} (" . implode(',', $tPlaceholder) . ")";
+                    $this->mBindParam = $pWhere[2];
+                    break;
                 
+                case 'LIKE':
+                    //TODO
+                    break;
+                default:
+                    break;
             }
-            $this->mWhere = rtrim($this->mWhere, ' AND ');
+            
             
             return $this;
         }
+    }
+    
+    /**
+     * 排序
+     * @author 董光明 <dongguangming@17house.com>
+     * @date 2016-04-21 16:47
+     * @param string $pOrder 排序
+     * @return \PDODb
+     */
+    public function order( $pOrder )
+    {
+        $tOrder = trim($pOrder);
+        if ( empty($tOrder) ) {
+            return $this;
+        }
+        
+        $this->mOrder = "ORDER BY {$tOrder}";
+        
+        return $this;
+    }
+    
+    /**
+     * 分组
+     * @author 董光明 <dongguangming@17house.com>
+     * @date 2016-04-21 16:47
+     * @param string $pGroup 分组
+     * @return \PDODb
+     */
+    public function group( $pGroup )
+    {
+        $tGroup = trim( $pGroup );
+        if ( empty($tGroup) ) {
+            return $this;
+        }
+        
+        $this->mGroup = "GROUP BY {$tGroup}";
+        
+        return $this;
     }
     
     /**
@@ -303,6 +458,11 @@ class PDODb
         $tDsn = "mysql:host={$pHost};port={$pPort};dbname={$pDbname}";
         $this->mConnect = new PDO($tDsn, $pDbuser, $pDbpass, array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES '.$pEncode));
         return;
+    }
+    
+    public function getLastSql()
+    {
+        return $this->mLastSql;
     }
     
     /**
@@ -325,6 +485,11 @@ class PDODb
      */
     private function afterExecute()
     {
+        $this->mWhere = '';
+        $this->mOrder = '';
+        $this->mGroup = '';
+        $this->mHaving = '';
+        $this->mLimit = '';
         $this->mPrepareSql = '';
         $this->mBindParam  = array();
         return;
@@ -336,7 +501,7 @@ class PDODb
      * @date 2016-02-16 15:38
      * @return array
      */
-    private function getFields()
+    public function getFields()
     {
         $tFields = array();
         
@@ -350,7 +515,7 @@ class PDODb
                 $tFields['primary_key'] = $field['Field'];
             }
         }
-                
+        $tSth->closeCursor();
         return $tFields;
     }
     
