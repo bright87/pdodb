@@ -49,12 +49,18 @@ mysqldb.set_debug(True)
 # ]
 # result = mysqldb.table(table).where(where).delete()
 # print 'delete(),删除数据。'
-# print 'id: ', result
+# print 'affected: ', result
 # print mysqldb.get_lastsql()
 # print ''
 
 #update
-
+where = ('id', '=', '2')
+data = {'nickname':'bright-1-new', 'email':'bright-1-new@126.com'}
+result = mysqldb.table(table).where(where).update(data)
+print 'update(),更新数据。'
+print 'affected: ', result
+print mysqldb.get_lastsql()
+print ''
 
 #find
 where = ('id', '>', '2')

@@ -46,7 +46,7 @@ class MySQL:
     _having = ''
 
     #预处理绑定的数值
-    _bind_param = None
+    _bind_param = []
 
     #调试模式 True:调试模式; False:非调试模式
     _debug = True
@@ -278,6 +278,24 @@ class MySQL:
         self._afterExecute()
         return result
 
+    def update(self, data):
+        """
+        更新数据
+        :param data: dict 新数据，要更新的数据
+        :return:
+        """
+        if self._debug:
+            assert isinstance(self._table, str) and ''!=self._table, '数据表名必须是字符串，并且不能为空'
+            assert isinstance(data, dict) and 0 < len(data), "data不能为空"
+        if ( not (isinstance(data, dict) and 0 < len(data)) ):
+            return 0
+        self._data = data
+        self._sql = self._buildsql('UPDATE')
+        self._beforeExecute()
+        result = self._execute()
+        self._afterExecute()
+        return result
+
     def find(self):
         """
         查找一条数据
@@ -353,30 +371,14 @@ class MySQL:
         初始化（重置）sql语句中各关键词的值
         :return: None
         """
-        #当前要执行的sql
         self._sql = None
-
-        #要查询的字段
         self._fields = None
-
-        #查询条件 WHERE
         self._where = ''
-
-        #limit
         self._limit = ''
-
-        #排序规则 ORDER BY
         self._order = ''
-
-        #分组 GROUP BY
         self._group = ''
-
-        #HAVING
         self._having = ''
-
-        #预处理绑定的数值
-        self._bind_param = None
-
+        self._bind_param = []
         self._data = None
         return
 
@@ -435,7 +437,14 @@ class MySQL:
         elif 'DELETE' == operation_upper:
             sql = 'DELETE FROM ' + self._table + ' ' + self._where
         elif 'UPDATE' == operation_upper:
-            pass
+            sql = 'UPDATE ' + self._table + ' SET '
+            up = []
+            values = []
+            for (key, value) in self._data.items():
+                up.append(key + '=%s')
+                values.append(value)
+            self._bind_param = values + self._bind_param
+            sql += ','.join(up) + ' ' + self._where
         elif 'SELECT' == operation_upper:
             if self._fields is None:
                 self._fields = '*'
